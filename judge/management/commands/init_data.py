@@ -1,7 +1,7 @@
 import json
 import os
 from django.core.management.base import BaseCommand
-from assignment.models import User
+from judge.models import User
 
 
 class Command(BaseCommand):

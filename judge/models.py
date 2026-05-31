@@ -9,7 +9,3 @@ class User(AbstractUser):
     """
 
     pass
-
-
-###############################################################################
-## TODO: Modify the following
