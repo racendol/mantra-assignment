@@ -33,7 +33,7 @@ class RateLimitService:
                     obj.created_at = now
 
                 if obj.counter >= settings.RATE_LIMIT_REQUESTS:
-                    raise RateLimitExceeded()
+                    raise RateLimitExceeded("Rate Limit Exceeded")
 
             obj.counter += 1
             obj.save()

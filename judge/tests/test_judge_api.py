@@ -413,3 +413,23 @@ class TestBulkJudgeView:
         )
 
         assert response.status_code == 200
+
+@pytest.mark.django_db
+class TestNotFound:
+    def test_notfound(self, client):
+        response = client.post(
+            "/notfound",
+            [
+                {
+                    "sentence1": "A",
+                    "sentence2": "B",
+                },
+                {
+                    "sentence1": "C",
+                    "sentence2": "D",
+                },
+            ],
+            content_type="application/json",
+        )
+
+        assert response.status_code == 404

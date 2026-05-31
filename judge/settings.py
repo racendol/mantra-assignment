@@ -69,7 +69,6 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "judge.middleware.RequestLoggingMiddleware",
-    "ratelimit.middleware.RateLimitMiddleware",
 ]
 
 ROOT_URLCONF = "judge.urls"
@@ -168,6 +167,8 @@ RATE_LIMIT_WINDOW_SECONDS = env.int(
 
 REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": ("drf_spectacular.openapi.AutoSchema"),
+    "DEFAULT_THROTTLE_CLASSES": ["judge.throttles.RateLimitThrottle"],
+    "EXCEPTION_HANDLER": "judge.exceptions.custom_exception_handler"
 }
 
 SPECTACULAR_SETTINGS = {

@@ -12,7 +12,6 @@ class BulkJudgeRequestListSerializer(serializers.ListSerializer):
             )
         return data
 
-
 class JudgeRequestSerializer(serializers.Serializer):
     sentence1 = serializers.CharField()
     sentence2 = serializers.CharField()
@@ -20,7 +19,10 @@ class JudgeRequestSerializer(serializers.Serializer):
     class Meta:
         list_serializer_class = BulkJudgeRequestListSerializer
 
-
 class JudgeResultSerializer(serializers.Serializer):
     label = serializers.ChoiceField(choices=ENTAILMENT_LABEL_CHOICES)
     score = serializers.FloatField()
+
+class ErrorResponseSerializer(serializers.Serializer):
+    message = serializers.CharField()
+    details = serializers.DictField(required=False)
