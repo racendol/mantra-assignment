@@ -115,13 +115,21 @@ For every request logs, I logged the request details using RequestLoggingMiddlew
 
 ## 3. 3 ideas for future accuracy improvements
 ### 1. Microservices
-The first idea is to adopt a microservices architecture — specifically, separating the `EntailmentService` layer into its own service. This decouples the API gateway from the model prediction layer, allowing each to be scaled independently. Separating the model layer also makes it cleaner to deploy and manage, and opens the door to using much larger models.
+The first idea is to adopt a microservices architecture — specifically, separating the `EntailmentService` layer into its own service. This would decouple the API layer from the model-serving layer, allowing them to scale independently based on their respective workloads. For example, the API service may need to handle a large number of lightweight requests, while the inference service may require GPU resources or larger compute instances.
+
+This separation also simplifies model deployment and lifecycle management. New models can be rolled out, A/B tested, or upgraded without impacting the API layer. In addition, a dedicated inference service makes it easier to support larger models, model ensembles, or specialized hardware accelerators in the future.
 
 ### 2. Better rate limiting logic
-The current rate limiting uses fixed window, which has the burst-request weakness described earlier. This can be improved by switching to a sliding window algorithm. Additionally, the current rate limit state is stored in PostgreSQL. For rate limiting specifically, an in-memory DB like Redis would be a better fit since the data doesn't need to be persisted.
+The current rate limiting uses fixed window, which has the burst-request weakness described earlier. This can be improved by switching to a sliding window algorithm, which provides smoother traffic control and better protection against burst request.
+
+Additionally, the current rate limit state is stored in PostgreSQL. For rate limiting specifically, an in-memory DB like Redis would be a better fit since the data is short-lived and frequently updated. This would reduce database load, improve throughput, and enable distributed rate limiting across multiple application instances.
 
 ### 3. Improve the model
-Currently we only use the pretrained weights of the small model version. Accuracy can be improved by using a larger model variant or finding a better pretrained model. We can also fine-tune the model on domain-specific data to get better task-specific accuracy.
+Currently we only use the pretrained weights of the small model version. Prediction quality could be improved in several ways.
+
+First, we can use larger and better model to improve the accuracy. A much larger and better model can have better accuracy performance, but will comes at the inference performance costs.
+
+Second, the model could be fine-tuned on domain-specific data. This will allow it to have better performance according to the target use case. We can also monitor and periodically retrain/fine tune the model so the model will have better accuracy over time.
 
 # Automated tests (pytest)
 The automated tests are in the `tests` folder within each package, and can be run with `uv run poe test`.
