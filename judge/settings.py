@@ -190,6 +190,11 @@ LOGGING = {
             "class": "logging.StreamHandler",
             "formatter": "verbose",
         },
+        "file": {
+            "class": "logging.FileHandler",
+            "filename": BASE_DIR / "logs" / "app.log",
+            "formatter": "verbose",
+        },
     },
     "formatters": {
         "verbose": {
@@ -207,8 +212,9 @@ LOGGING = {
     },
     "loggers": {
         "judge": {
-            "handlers": ["console"],
+            "handlers": ["console", "file"],
             "level": "INFO",
+            "propagate": False,
         },
     },
 }
