@@ -30,38 +30,38 @@ uv run poe format
 # Evaluation
 ## 1. Explanation
 ### /judge logic
-For this assignment, we need to check if sentence1 and sentence2 have entailment or not. This is a classic NLP task, named Natural Language Inference (NLI). NLI is a task that required 2 arguments: premise and hypothesis, then it will classify if premise and hypothesis are classified as entailment, contradiction, or neutral. Or, NLI is a classification problem. Because it's a classic classification problem that takes input and prints an output, we have many ways to solve it.
+For this assignment, we need to check if `sentence1` and `sentence2` have entailment or not. This is a classic NLP task called Natural Language Inference (NLI). NLI takes 2 arguments — premise and hypothesis — and classifies whether they are entailment, contradiction, or neutral. Because it's a classic classification problem that takes input and produces an output, there are many ways to solve it.
 
-One of the most common way to solve classification problem is by using machine learning models. This is especially true for NLI problem, because finding entailment is hard if we use the more classic machine learning algorithm for classification such as random forest, because the word for entailment can be very contradictive or not related and we must find the entailment from deep semmantic relation of the word. Technically, we can create neural network from scratch and train it, but really implementing transformer or BERT from scratch will waste so much time. So because of that, i choose to use pretrained neural network model to cut time.
+One of the most common ways to solve a classification problem is by using machine learning models. This is especially true for NLI, because finding entailment is hard with classic ML algorithms like random forest — the words involved in entailment can be very contradictory or seemingly unrelated, and we need to find the entailment from deep semantic relations. Technically, we could build a neural network from scratch and train it, but implementing a transformer or BERT from scratch would take too much time. Because of that, I chose to use a pretrained neural network model to save time.
 
-Because language library models are allowed, for this assignment I use a Sentence-Transformers library. I specifically use the CrossEncoder model because it's the model that are used for classification task. I use pretrained models that are trained to solve NLI task (https://sbert.net/docs/cross_encoder/pretrained_models.html#nli). For this task I use model this model: `MoritzLaurer/multilingual-MiniLMv2-L6-mnli-xnli` (https://huggingface.co/MoritzLaurer/multilingual-MiniLMv2-L6-mnli-xnli). The reason I choose this is because in the assignment description it has Japanese input, so I need a model that can handle multilanguage input. Also because it's just a mini-project, we don't need a large model and only need the smallest size model.
+Since language library models are allowed, I use the Sentence-Transformers library for this assignment. Specifically, I use the CrossEncoder model because it's designed for classification tasks. I use a pretrained model trained to solve NLI tasks (https://sbert.net/docs/cross_encoder/pretrained_models.html#nli). The model I use is `MoritzLaurer/multilingual-MiniLMv2-L6-mnli-xnli` (https://huggingface.co/MoritzLaurer/multilingual-MiniLMv2-L6-mnli-xnli). I chose this because the assignment description includes Japanese input, so I need a model that can handle multilingual input. Also, since this is just a mini-project, we don't need a large model — the smallest size is sufficient.
 
-When we use the model using .predict() function, it will output 3 values, which are in order are values of: [entailment, neutral, contradiction]. These are specified in the model description. The values are also on logits, so we must convert it to 0-100 using softmax function, so we get nice looking score/prediction value. Also, because on this task we only need 2 label: entailment and not entailment, I combine the score of neutral and contradiction to create not entailment label. With this configuration, we can create the judgement API to work as the specification.
+When we call `.predict()` on the model, it outputs 3 values in this order: `[entailment, neutral, contradiction]`, as specified in the model description. The values are in logits, so we convert them to a 0–100 range using softmax to get a clean score. Since this task only needs 2 labels (entailment and not entailment) I combine the neutral and contradiction scores to create the not entailment label. With this setup, the judge API works as specified.
 
-### rate limit
-Besides the core /judge API, there's also one more task for this assignment: rate limit. For rate limit algorithm, I use the fixed window algorithm. This algorithm will store the 1st time the request are coming, and then will increase the counter until it reach max limit of the rate, which then will return the RateLimitExceeded error. When a request exceed the 1st time along the specified time window, it will then reset the counter so the request can be allowed again.
+### Rate Limit
+Besides the core `/judge` API, there's also a rate limit requirement. For the rate limit algorithm, I use the fixed window algorithm. This algorithm stores the timestamp of the 1st request, then increments a counter until it reaches the max limit, at which point it returns a `RateLimitExceeded` error. When a request comes in after the time window has passed, the counter resets and the request is allowed again.
 
-The reason why I choose the fixed window algorithm is because it's easy to implement, and because the idempotency key is just client_ip we only need to create 1 row per IP so it's easy to track, especially when during concurrency test that are required for this assignment, and also the DB won't grow very fast as long as I control the IP to test.
+I chose the fixed window algorithm because it's straightforward to implement, and since the idempotency key is just `client_ip`, we only need 1 row per IP, which is easy to track — especially during the concurrency tests required for this assignment. The DB also won't grow very fast as long as we control the IPs used for testing.
 
-But, the fixed window algorithm have weakness too. Because it automatically reset to 0 after exceeding time limit, technically the user can abuse it and have almost double the limit at border time. For example, with rate limit 5 and time window 1s, the user request 1 time at t: 00:00:00, then at 00:00:59 the user can request 4 times, then at 00:01:01 request 5 times, making the user technically sent 10 request at ~1 second. This make it the user can have spike requests to avoiding the limit. Nevertheless, at long time it will be averaged at the specified rate limit and time window (5 req/s) because of the algorithm, so as long as we can handle the spike it's not a big breaking problem, and even then the spike is at most 2x the limit.
+However, the fixed window algorithm does have a weakness. Because it resets to 0 after the time window expires, a user can technically abuse it and send almost double the limit at the window boundary. For example, with a rate limit of 5 and a time window of 1s, a user could send 1 request at `t: 00:00:00`, then 4 more at `00:00:59`, then 5 more at `00:01:01` — effectively sending 10 requests within ~1 second. This allows spike requests that can bypass the intended limit. That said, over a longer period it will average out to the specified rate (5 req/s), so as long as we can handle the spike, it's not a critical problem — and the spike is at most 2x the limit.
 
-The better algorithm for this is the sliding window. With sliding window we calculate the start of the window as the earliest time the request created, and then counter the incoming request and storing the timestamp of each request. Everytime new request is coming, we recalculate the earliest time for the start of the window. And then if there's more data than the specified rate limit at the specified time window, it will return RateLimitExceeded, and if not, then the request is inserted, to be calculated for the future start of the window. Because the rate limit window is dynamically set according to the timestamp of each data, the spike problem that i mentioned earlier is fixed and it the incoming request will be "true" limit of 5 req/s.
+A better algorithm for this is the sliding window. With sliding window, we set the start of the window to the earliest recorded request timestamp, store the timestamp of each request, and recalculate the window start on every new request. If the number of requests within the window exceeds the rate limit, we return `RateLimitExceeded`; otherwise the request is accepted and its timestamp is stored for future window calculations. Because the window is dynamically calculated based on actual request timestamps, the spike problem is eliminated and the limit becomes a "true" rate limit.
 
-But, the reason i don't use the sliding window is because we need to store all of the data (IP and timestamp) for each request that are sucessfully coming. Because of this, the data on DB can grow very fast and we need to implement something or find way to delete all the "stale" data that are not used. Also because of this, it's harder to track on concurrency test if there're no duplicate write or not. And the final reason it's because it will be slower because the time complexity is O(N), for N = rate limit, while the fixed window algorithm is just O(1). Because the assignment doesn't specify if we need to implement "true" rate limit, I decided that the fixed window algorithm is fine and satisfy the requirement.
+The reason I didn't use the sliding window is because it requires storing all request data (IP and timestamp) for every successful request, which causes the DB to grow fast and requires a cleanup strategy for stale data. It's also harder to reason about during concurrency testing. Finally, its time complexity is O(N) for N = rate limit, whereas fixed window is O(1). Since the assignment doesn't specify a need for a "true" rate limit, I decided fixed window is sufficient for the requirements.
 
-### project structure
-Not really explanation of the main 2 problem, but i think needs some addressing. For this project, because of the evaluation of clean code and readability, i tried to code it as "corporate-like" as possible, even though it's honestly overkill and overengineer for this requirements. Nevertheless, I tried to code it like this because of the evaluation so I tried to be as safe as possible and tried to code it like production-like level as possible. This is also first time I write python/django code like this because I usually use python for small hobby project and the last time I built something on python is on University (technically I also worked professionally on a Python project on Samsung, but it's mostly maintining legacy Python2 code), so it's also refreshing experience to me.
+### Project Structure
+Not directly related to the 2 main problems, but worth addressing. For this project, I tried to code it as "corporate-like" as possible for the sake of clean code and readability — even though it's honestly overkill and over-engineered for these requirements. I coded it this way to be as safe as possible and aim for production-level quality. This is also the first time I've written Python/Django code like this, since I usually use Python for small hobby projects, and the last time I built something in Python was in university (technically I also worked professionally on a Python project at Samsung, but it was mostly maintaining legacy Python 2 code). So it was a refreshing experience.
 
 ## 2. Explanation of how judgment criteria meets requirements F1-F3
 ### F1
-For /judge API, I built the JudgeViewSet and set it on /api/v1/judge. I set prefix /api/v1/ for clean API versioning, and because in the requirements it doesn't say strict `/judge` while also mentioning API design requirement, I tried to be as extendable and follows the best practice as possible. 
+For the `/judge` API, I built `JudgeViewSet` and registered it at `/api/v1/judge`. I added the `/api/v1/` prefix for clean API versioning. Since the requirements don't strictly specify `/judge` but do mention API design, I tried to follow best practices and keep it extendable.
 
-On this API I accept input sentence1 and sentence2 as specified in JudgeResultSerializers. sentence1 will be the premise, and sentence2 will be the hypothesis input for the entailment judge model layer. For entailment  layer, I create the EntailmentService that will predict using the machine learning model that I explained before. With the premise and hypothesis input, the pretrained model will predict and outputs 3 values, then are processed to entailment and not entailment output as explained before. For the model, i use lazy loading singleton that will load the model on 1st request on startup. I also add locking to make sure the 1st load is only load 1 time only.
+The API accepts `sentence1` and `sentence2` as input, as defined in `JudgeResultSerializers`. `sentence1` is used as the premise and `sentence2` as the hypothesis for the entailment model. For the entailment layer, I created `EntailmentService`, which runs prediction using the pretrained model I described earlier. The model outputs 3 values, which are then processed into entailment and not entailment labels as explained above. The model uses a lazy-loading singleton that loads on the first request, with locking to ensure it's only loaded once.
 
-After getting the label and score from the EntailmentService, then the ViewSet will return the label and the score, according to the requirements. And so, because of that, the /judge API satisfy the F1 requirements.
+After getting the label and score from `EntailmentService`, the ViewSet returns them according to the requirements. With this, the `/judge` API satisfies the F1 requirements.
 
 ### F2
-For /judge/bulk API, I built it on a new method on JudgeViewSet. Specifically for bulk, the input are the same (JudgeResultSerializers), but now with option many=true. This will make it accept input in array, example:
+For the `/judge/bulk` API, I added a new method to `JudgeViewSet`. The input uses the same `JudgeResultSerializers`, but with `many=True`, which allows it to accept an array of inputs, for example:
 
 ```
 [
@@ -76,56 +76,60 @@ For /judge/bulk API, I built it on a new method on JudgeViewSet. Specifically fo
 ]
 ```
 
-After that, on the view method it will process the input as list to the entailmentservice. Note that the entailmentservice already accepts input the promise and hypothesis as list, so there's no change needed. Also, the model for prediction also accept the lists as batch. in fact, it's way more efficient to predict batches of input instead of doing for loop and doing predict 1 by 1, because the CrossEncoder model is optimized to take batch of input. After that, we return the output as array, example::
+The view then passes the input as a list to `EntailmentService`. Note that `EntailmentService` already accepts premise and hypothesis as lists, so no changes were needed there. The CrossEncoder model also natively accepts batched input — in fact, batching is more efficient than predicting one by one since the model is optimized for it. The output is returned as an array, for example:
 
 ```
 [{"label":"NO_ENTAIL","score":0.9898723363876343},{"label":"NO_ENTAIL","score":0.8235358595848083}]
 ```
-To return output as array, we also just need to add many=true on the JudgeResultSerializers, so there's no need to change code logic.
 
-Also, in the requirements, it says `up to 100 pairs`, so for this I make a 100 pair limit on the serializer, and will return ValidationError and then 400 error when it gets input that are above the pair limit.
+Returning the output as an array also just requires adding `many=True` to `JudgeResultSerializers`, so no additional logic changes were needed.
 
-So with these the /judge/bulk API satisfy the F2 requirements.
+Since the requirements mention `up to 100 pairs`, I added a 100-pair limit in the serializer, which returns a `ValidationError` and a 400 response when the limit is exceeded.
+
+With this, the `/judge/bulk` API satisfies the F2 requirements.
 
 ### F3
-For rate limit logic, it's as I explained before. The rate limit is in RateLimitThrottle, using the Throttle feature from Django REST Framework. The IP are acquired using the built in get_ident(request). When RateLimitExceeded exception happens, it will catch that and return Throttle exception which then catched on custom_exception_handler to return the 429 too many request error.
+For the rate limit logic, it's as explained earlier. The rate limit is implemented in `RateLimitThrottle` using DRF's Throttle feature. The IP is acquired using the built-in `get_ident(request)`. When a `RateLimitExceeded` exception occurs, it's caught and re-raised as a `Throttled` exception, which is then caught by `custom_exception_handler` to return a 429 Too Many Requests response.
 
-For each incoming request the IP will be recorded as RequestLog data on DB, that will store the created_at and counter.  Then for next incoming request that are still in time window, it will increment the counter until the counter is above limit, which then it will return RateLimitExceeded exception. When the request have time that are longer than the time window, it will reset the counter instead and forward the request as normal. 
+For each incoming request, the IP is recorded as a `RequestLog` entry in the DB, storing `created_at` and `counter`. For subsequent requests within the time window, the counter increments until it exceeds the limit, at which point `RateLimitExceeded` is raised. When a request comes in after the time window has passed, the counter resets and the request proceeds normally.
 
-So with these, the rate limit function is working and satify the F3 requirements.
+With this, the rate limit is working and satisfies the F3 requirements.
 
 ### Non functional requirements
-## latency
-There're 2 main bottleneck for latency in this:
-1. 1st request (lazy load) request latency
-2. model predict latency
+## Latency
+There are 2 main bottlenecks for latency:
+1. 1st request latency (lazy load)
+2. Model prediction latency
 
-### 1. 1st request (lazy load) request latency
-Because I use lazy loading, on the 1st request there will be latency on the 1st request because it will try to load the model on 1st request. Because of that, the 1st request will be considerably have large latency. The fix to this is either to change it to eager-loading or warm up/loading after some time after startup before 1st request. But because there's no requirement latency and do not have time, I only applied lazy-loading. Using lazy loading also reduce startup time especially when testing so for this assignment it's worth the tradeoff.
+### 1. 1st request latency (lazy load)
+Because I use lazy loading, the first request will have noticeably higher latency since it triggers the model to load. The fix would be to switch to eager loading or to warm up the model after startup before the first request comes in. Since there's no latency requirement in the assignment and time was limited, I kept lazy loading. It also reduces startup time, especially during testing, so the tradeoff is worth it for this assignment.
 
-### 2. model predict latency
-For this model, we only use a small model, so it have faster inference performance, but at the cost of worse accuracy performance than larger model. Of course, we can reduce latency by using simpler machine learning model/algorithm instead of transformers, but the performance will also hurts a lot. The opposite is also true, where we can increase the accuracy performance by using larger model, but the inference performance will be much slower. In my opinion, using mini/small transformers model for this have the best balance of accuracy and latency.
+### 2. Model prediction latency
+We use a small model, which gives faster inference at the cost of some accuracy compared to larger models. We could reduce latency further by using a simpler ML algorithm, but that would hurt performance significantly. Conversely, using a larger model would improve accuracy but slow down inference considerably. In my opinion, using a mini/small transformer model gives the best balance of accuracy and latency for this use case.
 
-## concurrent writes
-For concurrent writes, I make sure there's row-level locking when writing to DB using PostgreSQL. I use select_for_update to lock the row so when updating multiple IP it doesn't do duplicate write. Short story, at first I use SQLite with manual locking in the Python layer, but turns out SQLite have db level locking so I get very frequest db locking error when stress testing. Because of that, I switched to PostgreSQL to satisfy the requirements. The test on test_concurrency also make sure the concurrency write is working as expected and there's no duplicate write. Especially, on test_30_ips_concurrent_writes will access the db with atleast 30 concurrent writes.
+## Concurrent writes
+For concurrent writes, I use row-level locking when writing to the DB using PostgreSQL. I use `select_for_update` to lock the row so concurrent writes to the same IP don't result in duplicate entries. Initially I used SQLite with manual locking at the Python layer, but SQLite uses DB-level locking, which caused frequent locking errors during stress testing. Because of that, I switched to PostgreSQL. The concurrency tests in `test_concurrency` verify that concurrent writes work correctly with no duplicates — particularly `test_30_ips_concurrent_writes`, which tests at least 30 concurrent DB writes.
+
+## Maintain request logs
+For every request logs, I logged the request details using RequestLoggingMiddleware. This will log all the incoming request. And then I configured the logger settings to save it in logs/app.log. Since there's no log rotation requirement, I kept it as simple file logging.
 
 ## 3. 3 ideas for future accuracy improvements
-### 1. microservices
-The first idea for improvement is by making microservices. Especially, separating the EntailmentService layer to its own service. This will make the API gateway layer and the model prediction layer seperate, so we can scale the model and/or the API gateway layer as needed. By seperating the model layer we can also deploy the model seperately, so will be cleaner to deploy and manage much larger model.
+### 1. Microservices
+The first idea is to adopt a microservices architecture — specifically, separating the `EntailmentService` layer into its own service. This decouples the API gateway from the model prediction layer, allowing each to be scaled independently. Separating the model layer also makes it cleaner to deploy and manage, and opens the door to using much larger models.
 
-### 2. better rate limiting logic
-Right now the rate limiting logic is fixed window with burst-request weakness I explained. We can improve this by using the sliding window logic. Also, right now the rate limit is saved on PostgreSQL DB. I think, for specifically rate limit, it's better to save it on memory DB such as Redis because it's not important perpetual data.
+### 2. Better rate limiting logic
+The current rate limiting uses fixed window, which has the burst-request weakness described earlier. This can be improved by switching to a sliding window algorithm. Additionally, the current rate limit state is stored in PostgreSQL. For rate limiting specifically, an in-memory DB like Redis would be a better fit since the data doesn't need to be persisted.
 
-### 3. improve the model
-Right now we only use the pretrained weights and use the small version of the model. We can improve accuracy by using larger version of the model, or finding better model. Other than that, we can also fine tune the model to predict it as domain specific that we want, so we can have better accuracy performance.
+### 3. Improve the model
+Currently we only use the pretrained weights of the small model version. Accuracy can be improved by using a larger model variant or finding a better pretrained model. We can also fine-tune the model on domain-specific data to get better task-specific accuracy.
 
 # Automated tests (pytest)
-the automated tests are in the tests folder for each package, which can be run using `uv run poe test` 
- 
+The automated tests are in the `tests` folder within each package, and can be run with `uv run poe test`.
+
 # API documentation (OpenAPI YAML or Markdown tables, etc.)
-the API documentation is in `openapi.yaml`, which are generated using `spectacular` package.
+The API documentation is in `openapi.yaml`, generated using the `spectacular` package.
 
-# Other documentations
-Becauyse I use Sentence-Transformers, although it's technically not "large" language model (though it's large at the time), it's still pretty considerable amount of about 500 MB for downloading the model. The caching is already handled by the Sentence-Transformers package which will cache the model to RAM after successfully downloaded.
+# Other documentation
+Since I use Sentence-Transformers, the model is around 500 MB to download — not technically a "large" language model by today's standards, but still a considerable size. Caching is handled automatically by the Sentence-Transformers package, which caches the model to disk after the first download.
 
-Also, because I use pretrained model, I don't quite understand the `stats accuracy calculation` requirement in the pytest , because we just use the pretrained model as is and there's not training. So in my opinion there's no need to test the accuracy for the model.
+Also, since I use a pretrained model, I'm not entirely sure what the `stats accuracy calculation` requirement in pytest means — we're using the pretrained model as-is without any training. In my opinion, testing model accuracy isn't necessary here since we're not training anything ourselves.
