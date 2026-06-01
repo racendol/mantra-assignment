@@ -3,6 +3,7 @@ from rest_framework.response import Response
 from rest_framework import status, serializers
 from rest_framework.exceptions import Throttled
 
+
 def custom_exception_handler(exc, context):
     response = exception_handler(exc, context)
 
@@ -22,6 +23,5 @@ def custom_exception_handler(exc, context):
             },
             status=status.HTTP_429_TOO_MANY_REQUESTS,
         )
-
 
     return response

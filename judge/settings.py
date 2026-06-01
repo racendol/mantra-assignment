@@ -165,10 +165,15 @@ RATE_LIMIT_WINDOW_SECONDS = env.int(
     default=1,
 )
 
+BULK_JUDGE_LIMIT = env.int(
+    "BULK_JUDGE_LIMIT",
+    default=100,
+)
+
 REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": ("drf_spectacular.openapi.AutoSchema"),
     "DEFAULT_THROTTLE_CLASSES": ["judge.throttles.RateLimitThrottle"],
-    "EXCEPTION_HANDLER": "judge.exceptions.custom_exception_handler"
+    "EXCEPTION_HANDLER": "judge.exceptions.custom_exception_handler",
 }
 
 SPECTACULAR_SETTINGS = {

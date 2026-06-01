@@ -1,42 +1,23 @@
-from datetime import timedelta
-from collections import defaultdict
-from threading import Lock
-
-from django.db import transaction
 from django.utils import timezone
 from django.conf import settings
 
 from ratelimit.exceptions import RateLimitExceeded
-from ratelimit.models import RequestLog
+from ratelimit.repositories import RequestLogRepository
 
 
 class RateLimitService:
-    _locks: dict[str, Lock] = defaultdict(Lock)
 
-    @transaction.atomic
+    def __init__(self, repository: RequestLogRepository | None = None):
+        self.repository = repository or RequestLogRepository()
+
     def check_rate_limit(self, client_ip: str) -> None:
-        with self._acquire_ip_lock(client_ip):
-            now = timezone.now()
-            obj, created = RequestLog.objects.get_or_create(
-                client_ip=client_ip,
-                defaults={
-                    "counter": 0,
-                    "created_at": now,
-                },
-            )
+        now = timezone.now()
+        is_allowed = self.repository.consume_request(
+            client_ip=client_ip,
+            now=now,
+            max_requests=settings.RATE_LIMIT_REQUESTS,
+            window_seconds=settings.RATE_LIMIT_WINDOW_SECONDS,
+        )
 
-            if not created:
-                if now - obj.created_at > timedelta(
-                    seconds=settings.RATE_LIMIT_WINDOW_SECONDS
-                ):
-                    obj.counter = 0
-                    obj.created_at = now
-
-                if obj.counter >= settings.RATE_LIMIT_REQUESTS:
-                    raise RateLimitExceeded("Rate Limit Exceeded")
-
-            obj.counter += 1
-            obj.save()
-
-    def _acquire_ip_lock(self, client_ip: str) -> Lock:
-        return self._locks[client_ip]
+        if not is_allowed:
+            raise RateLimitExceeded("Rate Limit Exceeded")

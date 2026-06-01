@@ -35,17 +35,30 @@ class TestConcurrentWrites:
         ips = ["1.1.1." + str(i) for i in range(6)]
 
         with ThreadPoolExecutor(max_workers=5) as executor:
-            futures = [executor.submit(self._call_api, client, ip) for ip in ips]
+            tasks = []
 
-            responses = [f.result() for f in futures]
+            for ip in ips:
+                for _ in range(5):
+                    tasks.append(
+                        executor.submit(
+                            self._call_api,
+                            client,
+                            ip,
+                        )
+                    )
+
+            responses = [f.result() for f in tasks]
 
         # all should succeed
         assert all(r.status_code == 200 for r in responses)
 
-        # db should have all IP entries
         logs = RequestLog.objects.all()
 
+        # db should have all IP entries
         assert logs.count() == len(ips)
+        
+        # counter should be 5
+        assert all(l.counter == 5 for l in logs)
 
         saved_ips = set(logs.values_list("client_ip", flat=True))
         assert saved_ips == set(ips)

@@ -5,7 +5,11 @@ from rest_framework.response import Response
 from entailment.dto import EntailmentRequest
 from entailment.services import entailment_service
 
-from judge.serializers import ErrorResponseSerializer, JudgeResultSerializer, JudgeRequestSerializer
+from judge.serializers import (
+    ErrorResponseSerializer,
+    JudgeResultSerializer,
+    JudgeRequestSerializer,
+)
 
 from drf_spectacular.utils import extend_schema
 
@@ -18,7 +22,7 @@ class JudgeViewSet(viewsets.ViewSet):
             200: JudgeResultSerializer,
             400: ErrorResponseSerializer,
             429: ErrorResponseSerializer,
-        }
+        },
     )
     def create(self, request):
         serializer = JudgeRequestSerializer(data=request.data)
@@ -40,7 +44,7 @@ class JudgeViewSet(viewsets.ViewSet):
             200: JudgeResultSerializer(many=True),
             400: ErrorResponseSerializer,
             429: ErrorResponseSerializer,
-        }
+        },
     )
     @action(detail=False, methods=["post"], url_path="bulk")
     def bulk(self, request):
@@ -59,4 +63,3 @@ class JudgeViewSet(viewsets.ViewSet):
 
         result_serializer = JudgeResultSerializer(result, many=True)
         return Response(result_serializer.data)
-    

@@ -414,6 +414,7 @@ class TestBulkJudgeView:
 
         assert response.status_code == 200
 
+
 @pytest.mark.django_db
 class TestNotFound:
     def test_notfound(self, client):
