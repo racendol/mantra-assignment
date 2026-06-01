@@ -29,7 +29,7 @@ class RequestLogRepository:
         request_log.save(update_fields=["counter", "created_at"])
 
         return True
-    
+
     def _get_or_create_locked(self, client_ip: str, now):
         # lock row with select for update
         try:

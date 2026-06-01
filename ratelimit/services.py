@@ -6,7 +6,6 @@ from ratelimit.repositories import RequestLogRepository
 
 
 class RateLimitService:
-
     def __init__(self, repository: RequestLogRepository | None = None):
         self.repository = repository or RequestLogRepository()
 

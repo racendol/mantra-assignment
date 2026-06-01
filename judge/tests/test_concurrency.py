@@ -56,9 +56,9 @@ class TestConcurrentWrites:
 
         # db should have all IP entries
         assert logs.count() == len(ips)
-        
+
         # counter should be 5
-        assert all(l.counter == 5 for l in logs)
+        assert all(log.counter == 5 for log in logs)
 
         saved_ips = set(logs.values_list("client_ip", flat=True))
         assert saved_ips == set(ips)
