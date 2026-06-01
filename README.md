@@ -138,6 +138,6 @@ The automated tests are in the `tests` folder within each package, and can be ru
 The API documentation is in `openapi.yaml`, generated using the `spectacular` package.
 
 # Other documentation
-Since I use Sentence-Transformers, the model is around 500 MB to download — not technically a "large" language model by today's standards, but still a considerable size. Caching is handled automatically by the Sentence-Transformers package, which caches the model to disk after the first download.
+Since I use Sentence-Transformers, the model is around 500 MB to download, not technically a "large" language model by today's standards, but still a considerable size. Caching is handled automatically by the Sentence-Transformers package, which caches the model to disk after the first download.
 
-Also, since I use a pretrained model, I'm not entirely sure what the `stats accuracy calculation` requirement in pytest means — we're using the pretrained model as-is without any training. In my opinion, testing model accuracy isn't necessary here since we're not training anything ourselves.
+Also, since I use a pretrained model, I'm not entirely sure what the `stats accuracy calculation` requirement in pytest means since we're using the pretrained model as-is without any training. In my opinion, testing model accuracy isn't necessary here since we're not training anything ourselves.
